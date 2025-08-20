@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FX Widget Demo</title>
+  <style>
+    body{font-family: ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; padding:24px; color:#0f172a; background:#f8fafc}
+    .wrap{max-width:900px; margin:0 auto}
+    h1{font-size:24px; margin:0 0 8px}
+    p{margin:0 0 16px; color:#334155}
+    code{background:#e2e8f0; padding:2px 6px; border-radius:6px}
+    iframe{border:1px solid #e5e7eb; border-radius:12px}
+    .grid{display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:16px; align-items:start}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>ตัวอย่างการฝัง &lt;iframe&gt; ของ Live Exchange Rates</h1>
+    <p>ไฟล์วิดเจ็ต: <code>exchange-widget.html</code> (อยู่โฟลเดอร์เดียวกัน)</p>
+    <div class="grid">
+      <div>
+        <h3>ธีมสว่าง (THB → USD, EUR, JPY, GBP, CNY)</h3>
+        <iframe
+          src="./exchange-widget.html?base=THB&symbols=USD,EUR,JPY,GBP,CNY&refresh=60&theme=light"
+          width="380"
+          height="360"
+          loading="lazy"
+        ></iframe>
+      </div>
+      <div>
+        <h3>ธีมมืด (USD → THB, EUR, JPY)</h3>
+        <iframe
+          src="./exchange-widget.html?base=USD&symbols=THB,EUR,JPY&refresh=45&theme=dark"
+          width="380"
+          height="360"
+          loading="lazy"
+        ></iframe>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

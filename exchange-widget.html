@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Live Exchange Rates</title>
+  <style>
+    :root{
+      --bg: transparent;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted:#64748b;
+      --border:#e5e7eb;
+      --rise:#16a34a;
+      --fall:#dc2626;
+    }
+    .dark{
+      --card:#0b1220;
+      --text:#e5e7eb;
+      --muted:#94a3b8;
+      --border:#1f2937;
+    }
+    html,body{margin:0;padding:0;background:var(--bg);font-family: ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";}
+    .wrap{box-sizing:border-box; width:100%; max-width:420px; margin:0 auto; padding:12px}
+    .card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; box-shadow:0 2px 10px rgba(0,0,0,.05)}
+    .header{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:10px}
+    .title{font-weight:700; color:var(--text)}
+    .base{font-size:12px; color:var(--muted)}
+    .updated{font-size:12px; color:var(--muted); white-space:nowrap}
+    table{width:100%; border-collapse:collapse}
+    th,td{padding:8px 6px; text-align:left; border-top:1px dashed var(--border)}
+    th{font-size:12px; color:var(--muted); font-weight:600}
+    td{font-size:14px; color:var(--text)}
+    .pair{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono"; font-weight:600}
+    .dir{font-size:12px; font-weight:700}
+    .up{color:var(--rise)}
+    .down{color:var(--fall)}
+    .badge{display:inline-block; font-size:11px; padding:2px 6px; border:1px solid var(--border); border-radius:999px; color:var(--muted)}
+    .foot{margin-top:10px; font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap}
+    .error{color:var(--fall); font-size:13px; margin-top:8px}
+  </style>
+</head>
+<body>
+  <div id="root" class="wrap">
+    <div class="card">
+      <div class="header">
+        <div>
+          <div class="title">FX Rates <span id="baseBadge" class="badge"></span></div>
+          <div class="base" id="sourceNote"></div>
+        </div>
+        <div class="updated" id="updated">—</div>
+      </div>
+
+      <table id="ratesTable" aria-live="polite">
+        <thead>
+          <tr>
+            <th>Pair</th>
+            <th>Rate</th>
+            <th>Δ</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <!-- populated by JS -->
+        </tbody>
+      </table>
+
+      <div id="err" class="error" hidden></div>
+
+      <div class="foot">
+        <div>Auto-refresh <span id="every">60s</span></div>
+        <div>Timezone: Asia/Bangkok</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---- Config via URL params ----
+    // ?base=THB&symbols=USD,EUR,JPY,GBP,CNY&refresh=60&theme=light|dark
+    const params = new URLSearchParams(location.search);
+    const BASE   = (params.get("base") || "THB").toUpperCase();
+    const SYMBOLS= (params.get("symbols") || "USD,EUR,JPY,GBP,CNY").split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
+    const REFRESH= Math.max(10, parseInt(params.get("refresh") || "60", 10)); // seconds, min 10
+    const THEME  = (params.get("theme") || "light").toLowerCase();
+
+    if (THEME === "dark") document.documentElement.classList.add("dark");
+    document.getElementById("every").textContent = REFRESH + "s";
+    document.getElementById("baseBadge").textContent = "BASE: " + BASE;
+    document.getElementById("sourceNote").textContent = "Data: exchangerate.host (ECB)";
+
+    const rowsEl = document.getElementById("rows");
+    const errEl  = document.getElementById("err");
+    const updatedEl = document.getElementById("updated");
+
+    let lastRates = {};
+
+    function formatRate(x){
+      // adaptive precision: big numbers fewer decimals, small numbers more
+      const abs = Math.abs(x);
+      const decimals = abs >= 100 ? 2 : abs >= 1 ? 4 : 6;
+      return new Intl.NumberFormat(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(x);
+    }
+
+    function setUpdated(ts){
+      const d = ts ? new Date(ts) : new Date();
+      updatedEl.textContent = d.toLocaleString("en-GB", { timeZone: "Asia/Bangkok", hour12:false });
+    }
+
+    function render(rates){
+      rowsEl.innerHTML = "";
+      SYMBOLS.forEach(sym=>{
+        const pair = `${BASE}/${sym}`;
+        const r = rates[sym];
+        const tr = document.createElement("tr");
+
+        const tdPair = document.createElement("td");
+        tdPair.className = "pair";
+        tdPair.textContent = pair;
+
+        const tdRate = document.createElement("td");
+        tdRate.textContent = r !== undefined ? formatRate(r) : "—";
+
+        const tdDelta = document.createElement("td");
+        const prev = lastRates[sym];
+        if (prev !== undefined && r !== undefined){
+          const diff = r - prev;
+          if (Math.abs(diff) < Number.EPSILON) {
+            tdDelta.innerHTML = '<span class="dir">—</span>';
+          } else if (diff > 0){
+            tdDelta.innerHTML = '<span class="dir up">▲</span>';
+          } else {
+            tdDelta.innerHTML = '<span class="dir down">▼</span>';
+          }
+        } else {
+          tdDelta.innerHTML = '<span class="dir">·</span>';
+        }
+
+        tr.append(tdPair, tdRate, tdDelta);
+        rowsEl.appendChild(tr);
+      });
+      lastRates = {...rates};
+    }
+
+    async function fetchRates(){
+      errEl.hidden = true;
+      try{
+        const url = `https://api.exchangerate.host/latest?base=${encodeURIComponent(BASE)}&symbols=${encodeURIComponent(SYMBOLS.join(","))}`;
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
+        const data = await res.json();
+        if (!data || !data.rates) throw new Error("Malformed response");
+        render(data.rates);
+        // Use API's date when present; otherwise now
+        setUpdated(data.date ? data.date + "T00:00:00" : Date.now());
+      } catch(e){
+        errEl.textContent = "Failed to load rates. Retrying… (" + e.message + ")";
+        errEl.hidden = false;
+      }
+    }
+
+    // initial + interval
+    fetchRates();
+    setInterval(fetchRates, REFRESH * 1000);
+
+    // Resize observer to help iframes without fixed height (optional)
+    try{
+      const ro = new ResizeObserver(()=> {
+        const h = document.documentElement.scrollHeight;
+        parent.postMessage({ type:"fx-widget-height", height:h }, "*");
+      });
+      ro.observe(document.body);
+    } catch(_){}
+  </script>
+</body>
+</html>
