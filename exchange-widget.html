@@ -143,7 +143,7 @@
     async function fetchRates(){
       errEl.hidden = true;
       try{
-        const url = `https://api.exchangerate.host/latest?base=${encodeURIComponent(BASE)}&symbols=${encodeURIComponent(SYMBOLS.join(","))}`;
+        const url = `https://open.er-api.com/v6/latest/${encodeURIComponent(BASE)}`;
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
         const data = await res.json();
